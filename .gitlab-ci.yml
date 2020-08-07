@@ -1,0 +1,100 @@
+image: maven:3-jdk-8-slim
+
+stages:
+  - build
+  - test
+  - package
+  - deploy
+
+variables:
+  MAVEN_CLI_OPTS: "-Dbamboo.gituser=${GITREPOUSER} -Dbamboo.gittoken=${GITREPOTOKEN} -Ddeploymenttoken=${AWS_ACCESS_KEY_ID} -Ddeploymentsecret=${AWS_SECRET_KEY} -DAWS_DEFAULT_REGION=${AWS_DEFAULT_REGION} -s src/main/resources/env.properties --batch-mode"
+  MAVEN_OPTS: "-Dmaven.repo.local=.m2/repository"
+  GSG_RELEASE_BRANCHES: production
+
+.default_cache: &default_cache
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - .m2/repository/
+    - target
+
+version:
+  stage: .pre
+  image: registry.gitlab.com/juhani/go-semrel-gitlab:v0.21.1
+  before_script:
+  - apt update
+  - apt install --no-install-recommends -y git
+  - git fetch --tags
+  script:
+    - release --bump-patch next-version > .next-version
+    - cat .next-version
+  artifacts:
+    paths:
+    - .next-version
+  except:
+    - tags
+   
+build:
+  stage: build
+  cache:
+    << : *default_cache
+    policy: pull-push
+  script:
+    - mvn clean
+    - export RELEASE_VERSION=$(<.next-version)
+    - mvn versions:set -DnewVersion=$RELEASE_VERSION -DprocessAllModules
+    - mvn $MAVEN_CLI_OPTS compile
+  artifacts:
+    paths:
+    - pom.xml
+  except:
+    - tags
+
+test:
+  stage: test
+  cache:
+    << : *default_cache
+    policy: pull-push
+  script:
+    - mvn $MAVEN_CLI_OPTS test
+  except:
+    - tags
+
+package:
+  stage: package
+  cache:
+    << : *default_cache
+    policy: pull-push
+  script:
+    - mvn $MAVEN_CLI_OPTS package
+  artifacts:
+    paths:
+    - target/madana-*-*.jar
+  except:
+    - tags
+
+version_tag:
+  stage: deploy
+  image: registry.gitlab.com/juhani/go-semrel-gitlab:v0.21.1
+  before_script:
+  - apt update
+  - apt install --no-install-recommends -y git
+  - git fetch --tags
+  script:
+    - release --bump-patch commit-and-tag pom.xml
+  except:
+    - tags
+ 
+deploy:
+  stage: deploy
+  cache:
+    << : *default_cache
+    policy: pull
+  environment:
+    name: github-registry
+  script:
+    - mvn $MAVEN_CLI_OPTS deploy
+  except:
+    - tags
+  only:
+    - production
+
