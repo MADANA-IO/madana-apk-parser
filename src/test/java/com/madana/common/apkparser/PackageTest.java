@@ -1,6 +1,4 @@
-package com.madana.apk;
-
-import static org.junit.Assert.assertTrue;
+package com.madana.common.apkparser;
 
 import org.junit.Test;
 import java.util.ArrayList;

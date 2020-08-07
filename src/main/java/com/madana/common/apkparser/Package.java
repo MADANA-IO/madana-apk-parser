@@ -1,4 +1,4 @@
-package com.madana.apk;
+package com.madana.common.apkparser;
 
 import java.util.ArrayList;
 import java.time.Instant;
