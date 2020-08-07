@@ -29,6 +29,13 @@
       <artifactId>sqlite-jdbc</artifactId>
       <version>3.32.3.2</version>
     </dependency>
+    <!-- https://mvnrepository.com/artifact/org.apache.commons/commons-compress -->
+<dependency>
+    <groupId>org.apache.commons</groupId>
+    <artifactId>commons-compress</artifactId>
+    <version>1.2</version>
+</dependency>
+    
   </dependencies>
 
   <build>
