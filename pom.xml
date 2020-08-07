@@ -6,7 +6,7 @@
 
   <groupId>com.madana</groupId>
   <artifactId>madana-apk-parser</artifactId>
-  <version>0.0.2</version>
+  <version>0.0.3-master.1</version>
 
   <name>madana-apk-parser</name>
   <url>https://madana.io</url>
@@ -29,6 +29,13 @@
       <artifactId>sqlite-jdbc</artifactId>
       <version>3.32.3.2</version>
     </dependency>
+    <!-- https://mvnrepository.com/artifact/org.apache.commons/commons-compress -->
+<dependency>
+    <groupId>org.apache.commons</groupId>
+    <artifactId>commons-compress</artifactId>
+    <version>1.2</version>
+</dependency>
+    
   </dependencies>
 
   <build>

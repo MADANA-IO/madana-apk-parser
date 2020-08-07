@@ -21,25 +21,36 @@
 
 package com.madana.common.apkparser;
 
-import java.util.ArrayList;
-import java.time.Instant;
-import java.time.Duration;
-import java.io.InputStream;
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.net.MalformedURLException;
-import java.io.IOException;
-import java.lang.InterruptedException;
-import java.lang.ProcessBuilder;
-
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
+
+import org.apache.commons.compress.archivers.ArchiveException;
+import org.apache.commons.compress.archivers.ArchiveStreamFactory;
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
+import org.apache.commons.compress.utils.IOUtils;
 
 public class Package 
 {
@@ -54,6 +65,7 @@ public class Package
 	private static String alpineArch = "x86_64";
 	private static String alpineVersion = "latest-stable";
 	private static URL apkIndex;
+	private static final File alpineIndexFolder= new File("APKINDEX");
        
 	static {
 		try {
@@ -77,7 +89,7 @@ public class Package
 
 	private static void download() throws IOException, InterruptedException 
 	{
-		String file_path = "/tmp/APKINDEX.tar.gz";
+		String file_path = "APKINDEX.tar.gz";
 		InputStream in = null;
 		try {
 			in = new URL("http://dl-cdn.alpinelinux.org/alpine/"+
@@ -85,18 +97,13 @@ public class Package
 				.openStream();
 		} catch(MalformedURLException ex) {}
 		Files.copy(in, Paths.get(file_path), StandardCopyOption.REPLACE_EXISTING);
-
-		ProcessBuilder builder = new ProcessBuilder();
-		builder.command("sh", "-c", String.format("tar xfz %s -C %s", file_path, "/tmp/"));
-		builder.directory(new File("/tmp"));
-		int exitCode = builder.start().waitFor();
-		assert exitCode == 0;
+		extractTarGZ(new FileInputStream(file_path));
 	}
 
 	private static void parse() throws IOException, SQLException, InterruptedException
 	{
 		Package.download();
-		String index_path = "/tmp/APKINDEX";
+		String index_path = "APKINDEX";
 		Package entry = new Package();
 		Files.lines(Paths.get(index_path)).forEach(line -> {
 			if (line.equals("")) {
@@ -137,7 +144,34 @@ public class Package
 
 		lastUpdate = Instant.now();
 	}
+	public static void extractTarGZ(InputStream in) throws IOException {
+	    GzipCompressorInputStream gzipIn = new GzipCompressorInputStream(in);
+	    try (TarArchiveInputStream tarIn = new TarArchiveInputStream(gzipIn)) {
+	        TarArchiveEntry entry;
 
+	        while ((entry = (TarArchiveEntry) tarIn.getNextEntry()) != null) {
+	            /** If the entry is a directory, create the directory. **/
+	            if (entry.isDirectory()) {
+	                File f = new File(entry.getName());
+	                boolean created = f.mkdir();
+	                if (!created) {
+	                    System.out.printf("Unable to create directory '%s', during extraction of archive contents.\n",
+	                            f.getAbsolutePath());
+	                }
+	            } else {
+	                int count;
+	                byte data[] = new byte[2048];
+	                FileOutputStream fos = new FileOutputStream(entry.getName(), false);
+	                try (BufferedOutputStream dest = new BufferedOutputStream(fos, 2048)) {
+	                    while ((count = tarIn.read(data, 0, 2048)) != -1) {
+	                        dest.write(data, 0, count);
+	                    }
+	                }
+	            }
+	        }
+
+	    }
+	}
 	public static Package searchExact(String name) throws IOException, SQLException, InterruptedException
 	{
 		Package.update();
