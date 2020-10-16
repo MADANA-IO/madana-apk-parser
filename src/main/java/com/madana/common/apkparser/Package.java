@@ -55,7 +55,7 @@ import org.apache.commons.compress.utils.IOUtils;
 public class Package 
 {
 	private String arch, depends, origin, name, provides,
-		providerPriority, timestamp, version;
+		providerPriority, timestamp, version, repo;
 
 	private static Connection connection;
 	private static Statement statement;
@@ -64,14 +64,7 @@ public class Package
 	private final static int updateInterval = 24;
 	private static String alpineArch = "x86_64";
 	private static String alpineVersion = "latest-stable";
-	private static URL apkIndex;
 	private static final File alpineIndexFolder= new File("APKINDEX");
-       
-	static {
-		try {
-			updateUrl();
-		} catch(MalformedURLException ex) {}
-	}
 
 	private Package() {}
 
@@ -85,26 +78,28 @@ public class Package
 		providerPriority = rs.getString("provider_priority");
 		timestamp = rs.getString("timestamp");
 		version = rs.getString("version");
+		repo = rs.getString("repo");
 	}
 
-	private static void download() throws IOException, InterruptedException 
+	private static void download(String repo) throws IOException, InterruptedException 
 	{
 		String file_path = "APKINDEX.tar.gz";
 		InputStream in = null;
 		try {
 			in = new URL("http://dl-cdn.alpinelinux.org/alpine/"+
-					alpineVersion+"/main/"+alpineArch+"/APKINDEX.tar.gz")
+					alpineVersion+"/"+repo+"/"+alpineArch+"/APKINDEX.tar.gz")
 				.openStream();
 		} catch(MalformedURLException ex) {}
 		Files.copy(in, Paths.get(file_path), StandardCopyOption.REPLACE_EXISTING);
 		extractTarGZ(new FileInputStream(file_path));
 	}
 
-	private static void parse() throws IOException, SQLException, InterruptedException
+	private static void parse(String repo) throws IOException, SQLException, InterruptedException
 	{
-		Package.download();
+		Package.download(repo);
 		String index_path = "APKINDEX";
 		Package entry = new Package();
+		entry.setRepo(repo);
 		Files.lines(Paths.get(index_path)).forEach(line -> {
 			if (line.equals("")) {
 				try {
@@ -138,9 +133,10 @@ public class Package
 		Package.statement.executeUpdate("create table package (arch string, "
 			+ "depends string, origin string, name string, "
 			+ "provides string, provider_priority string, "
-			+ "timestamp string, version string)");
+			+ "timestamp string, version string, repo string)");
 
-		Package.parse();
+		Package.parse("main");
+		Package.parse("community");
 
 		lastUpdate = Instant.now();
 	}
@@ -208,9 +204,9 @@ public class Package
 		validate();
 		Package.statement.executeUpdate(
 			String.format("insert into package values"
-				+"('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')",
+				+"('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')",
 				arch, depends, origin, name, provides,
-				providerPriority, timestamp, version));
+				providerPriority, timestamp, version, repo));
 		reset();
 	}
 
@@ -222,7 +218,11 @@ public class Package
 
 	private void validate() 
 	{
-		assert arch != null && name != null && version != null;
+		assert arch != null && name != null && version != null && repo != null;
+	}
+
+	private void setRepo(String repo) {
+		this.repo = repo;
 	}
 
 	private void setValue(char type, String value)
@@ -258,23 +258,16 @@ public class Package
 
 	}
 
-	private static void updateUrl() throws MalformedURLException
-	{
-		apkIndex = new URL("http://dl-cdn.alpinelinux.org/alpine/"+
-			alpineVersion+"/main/"+alpineArch+"/APKINDEX.tar.gz");
-		Package.lastUpdate = null;
-	}
-
 	public static void setAlpineArch(String alpineArch) throws MalformedURLException
 	{
 		Package.alpineArch = alpineArch;
-		updateUrl();
+		Package.lastUpdate = null;
 	}
 
 	public static void setAlpineVersion(String alpineVersion) throws MalformedURLException
 	{
 		Package.alpineVersion = alpineVersion;
-		updateUrl();
+		Package.lastUpdate = null;
 	}
 
 	public String getArch()
@@ -317,11 +310,16 @@ public class Package
 		return version;
 	}
 
+	public String getRepo()
+	{
+		return repo;
+	}
+
 	public String toString() {
 		return String.format(
 			"Arch: %s, Depends: %s, Origin: %s, Name: %s, Provides: %s, " +
-			"ProviderPriority: %s, Timestamp: %s, Version: %s",
+			"ProviderPriority: %s, Timestamp: %s, Version: %s, Repository: %s",
 			arch, depends, origin, name, provides,
-			providerPriority, timestamp, version);
+			providerPriority, timestamp, version, repo);
 	}
 }

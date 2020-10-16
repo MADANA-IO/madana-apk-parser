@@ -72,4 +72,17 @@ public class PackageTest
 		throw ex;
 	}
     }
+
+    @Test
+    public void testSearchExactCommunity() throws Exception
+    {
+	try {
+		Package mdb = Package.searchExact("nyancat");
+		assert mdb.getName().equals("nyancat");
+		assert mdb.getRepo().equals("community");
+	} catch(Exception ex) {
+		ex.printStackTrace();
+		throw ex;
+	}
+    }
 }
